@@ -87,10 +87,8 @@ export function ProductsView() {
   return (
     <DashboardContent>
       <Typography variant="h4" sx={{ mb: 5 }}>
-        Products
+        Dịch Vụ
       </Typography>
-
-      <CartIcon totalItems={8} />
 
       <Box
         display="flex"
@@ -137,8 +135,6 @@ export function ProductsView() {
           </Grid>
         ))}
       </Grid>
-
-      <Pagination count={10} color="primary" sx={{ mt: 8, mx: 'auto' }} />
     </DashboardContent>
   );
 }
