@@ -11,11 +11,21 @@ import { DashboardLayout } from 'src/layouts/dashboard';
 // ----------------------------------------------------------------------
 
 export const HomePage = lazy(() => import('src/pages/home'));
-export const BlogPage = lazy(() => import('src/pages/blog'));
 export const UserPage = lazy(() => import('src/pages/user'));
 export const ChatPage = lazy(() => import('src/pages/chat'));
 export const SignInPage = lazy(() => import('src/pages/sign-in'));
 export const ProductsPage = lazy(() => import('src/pages/products'));
+
+// phụ tùng
+export const CarPartsPage = lazy(() => import('src/pages/car-pasts'));
+export const CarPartsOrdersPage = lazy(() => import('src/pages/car-pasts-orders'));
+export const OrdersUserPage = lazy(() => import('src/pages/order-ui'));
+export const OrdersManagementPage = lazy(() => import('src/pages/orders-managemen'));
+// ------------
+// blogs
+export const BlogPage = lazy(() => import('src/pages/articles'));
+export const CrteateBlogPage = lazy(() => import('src/pages/new-article'));
+// ----------
 export const Page404 = lazy(() => import('src/pages/page-not-found'));
 
 // ----------------------------------------------------------------------
@@ -47,8 +57,16 @@ export function Router() {
         { element: <HomePage />, index: true },
         { path: 'user', element: <UserPage /> },
         { path: 'products', element: <ProductsPage /> },
-        { path: 'blog', element: <BlogPage /> },
+        { path: 'car-parts', element: <CarPartsPage /> },
+        { path: 'car-parts-orders', element: <CarPartsOrdersPage /> },
+        { path: 'car-parts-orders-ui', element: <OrdersUserPage /> },
+        { path: 'orders-management', element: <OrdersManagementPage /> },
         { path: 'chat', element: <ChatPage /> },
+
+        // blog
+        { path: 'blog', element: <BlogPage /> },
+        { path: 'blog/create', element: <CrteateBlogPage /> },
+        { path: 'blog/edit/:id', element: <CrteateBlogPage /> },
       ],
     },
     {

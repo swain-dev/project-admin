@@ -22,11 +22,21 @@ export const navData = [
     title: 'Dịch vụ',
     path: '/products',
     icon: icon('ic-cart'),
-    info: (
-      <Label color="error" variant="inverted">
-        +3
-      </Label>
-    ),
+  },
+  {
+    title: 'Đơn đặt dịch vụ',
+    path: '/products',
+    icon: icon('ic-cart'),
+  },
+  {
+    title: 'Phụ tùng',
+    path: '/car-parts',
+    icon: icon('ic-cart'),
+  },
+  {
+    title: 'Đơn đặt phụ tùng',
+    path: '/orders-management',
+    icon: icon('ic-cart'),
   },
   {
     title: 'Tin tức',
