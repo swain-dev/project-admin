@@ -21,6 +21,8 @@ export const CarPartsPage = lazy(() => import('src/pages/car-pasts'));
 export const CarPartsOrdersPage = lazy(() => import('src/pages/car-pasts-orders'));
 export const OrdersUserPage = lazy(() => import('src/pages/order-ui'));
 export const OrdersManagementPage = lazy(() => import('src/pages/orders-managemen'));
+// service
+export const OrdersSercivePage = lazy(() => import('src/pages/service/order-service'));
 // ------------
 // blogs
 export const BlogPage = lazy(() => import('src/pages/articles'));
@@ -62,7 +64,9 @@ export function Router() {
         { path: 'car-parts-orders-ui', element: <OrdersUserPage /> },
         { path: 'orders-management', element: <OrdersManagementPage /> },
         { path: 'chat', element: <ChatPage /> },
-
+        // service
+        
+        { path: 'order-service', element: <OrdersSercivePage /> },
         // blog
         { path: 'blog', element: <BlogPage /> },
         { path: 'blog/create', element: <CrteateBlogPage /> },

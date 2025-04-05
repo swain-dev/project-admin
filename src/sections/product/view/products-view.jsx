@@ -16,12 +16,14 @@ import {
   TableRow,
   TextField,
   Typography,
-  FormControlLabel,
-  Switch,
   CircularProgress,
   Snackbar,
   Alert,
-  IconButton
+  IconButton,
+  MenuItem,
+  Grid,
+  FormControlLabel,
+  Switch
 } from '@mui/material';
 import axiosInstance from 'src/utils/axios';
 
@@ -31,7 +33,19 @@ const EditIcon = () => <span style={{ fontSize: '1.2rem' }}>✏️</span>;
 const DeleteIcon = () => <span style={{ fontSize: '1.2rem' }}>🗑️</span>;
 const CloseIcon = () => <span style={{ fontSize: '1rem' }}>✖</span>;
 
-const ProductsView = () => {
+// Danh sách các loại dịch vụ
+const SERVICE_CATEGORIES = [
+  "Bảo dưỡng định kỳ",
+  "Sửa chữa",
+  "Kiểm tra",
+  "Thay thế phụ tùng",
+  "Chăm sóc xe",
+  "Dịch vụ khẩn cấp",
+  "Tư vấn kỹ thuật",
+  "Khác"
+];
+
+const ServiceManagement = () => {
   // State cho danh sách dịch vụ
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -42,13 +56,15 @@ const ProductsView = () => {
   const [isEdit, setIsEdit] = useState(false);
   const [currentService, setCurrentService] = useState({
     name: '',
-    price: '',
     description: '',
-    slider: false,
-    duration: 20
+    price: '',
+    duration: '',
+    category: '',
+    requirements: '',
+    isActive: true
   });
   const [imageFiles, setImageFiles] = useState([]);
-  const [imageDocumentIds, setImageDocumentIds] = useState([]); // Lưu documentId của ảnh
+  const [imageIds, setImageIds] = useState([]);
   const [imagePreview, setImagePreview] = useState([]);
   const [previewSources, setPreviewSources] = useState([]);
 
@@ -88,13 +104,15 @@ const ProductsView = () => {
   const handleAddNew = () => {
     setCurrentService({
       name: '',
-      price: '',
       description: '',
-      slider: false,
-      duration: 20
+      price: '',
+      duration: '',
+      category: '',
+      requirements: '',
+      isActive: true
     });
     setImageFiles([]);
-    setImageDocumentIds([]);
+    setImageIds([]);
     setImagePreview([]);
     setPreviewSources([]);
     setIsEdit(false);
@@ -107,16 +125,18 @@ const ProductsView = () => {
       id: service.id,
       documentId: service.documentId,
       name: service.name,
+      description: service.description || '',
       price: service.price,
-      description: service.description,
-      slider: service.slider,
-      duration: service.duration
+      duration: service.duration,
+      category: service.category || '',
+      requirements: service.requirements || '',
+      isActive: service.isActive !== undefined ? service.isActive : true
     });
     
-    // Nếu có hình ảnh, hiển thị và lưu lại documentId
+    // Nếu có hình ảnh, hiển thị và lưu lại ID
     if (service.image && service.image.length > 0) {
-      // Lưu documentId của ảnh
-      setImageDocumentIds(service.image.map(img => img.id));
+      // Lưu ID của ảnh
+      setImageIds(service.image.map(img => img.id));
 
       // Hiển thị preview
       const previews = service.image.map(img => 
@@ -132,7 +152,7 @@ const ProductsView = () => {
         documentId: img.documentId
       })));
     } else {
-      setImageDocumentIds([]);
+      setImageIds([]);
       setImagePreview([]);
       setPreviewSources([]);
     }
@@ -199,7 +219,7 @@ const ProductsView = () => {
     const source = previewSources[previewIndex];
     
     if (source.type === 'file') {
-      // Xử lý cho file mới - phần này không thay đổi
+      // Nếu là file mới, xóa khỏi danh sách file
       const newImageFiles = [...imageFiles];
       newImageFiles.splice(source.fileIndex, 1);
       setImageFiles(newImageFiles);
@@ -215,16 +235,14 @@ const ProductsView = () => {
       
       setPreviewSources(updatedPreviewSources);
     } else if (source.type === 'uploaded') {
-      // Xử lý cho ảnh đã tải lên
-      // Thay đổi ở đây - xóa bằng ID thay vì documentId
-      const newImageDocumentIds = [...imageDocumentIds];
+      // Nếu là ảnh đã tải lên, xóa ID khỏi danh sách
+      const newImageIds = [...imageIds];
       
-      // Chúng ta cần xóa ĐÚNG ẢNH tại vị trí INDEX trong danh sách
-      // thay vì tìm kiếm qua ID/documentId
-      newImageDocumentIds.splice(source.index, 1);
-      setImageDocumentIds(newImageDocumentIds);
+      // Xóa đúng ảnh tại vị trí index trong danh sách
+      newImageIds.splice(source.index, 1);
+      setImageIds(newImageIds);
       
-      // Cập nhật indices - phần này không thay đổi
+      // Cập nhật indices
       const updatedPreviewSources = previewSources.filter((_, index) => index !== previewIndex)
         .map(s => {
           if (s.type === 'uploaded' && s.index > source.index) {
@@ -260,7 +278,6 @@ const ProductsView = () => {
       
       console.log('Upload response:', response);
       
-      // Lấy documentId của ảnh mới tải lên
       return response.map(img => img.id);
     } catch (error) {
       console.error('Error uploading images:', error);
@@ -274,7 +291,7 @@ const ProductsView = () => {
       setLoading(true);
       
       // Kiểm tra các trường bắt buộc
-      if (!currentService.name || !currentService.price || !currentService.description) {
+      if (!currentService.name || !currentService.price || !currentService.category) {
         setSnackbar({
           open: true,
           message: 'Vui lòng điền đầy đủ các trường bắt buộc',
@@ -284,39 +301,30 @@ const ProductsView = () => {
         return;
       }
       
-      // Nếu đang tạo mới và không có ảnh
-      if (!isEdit && imageFiles.length === 0) {
-        setSnackbar({
-          open: true,
-          message: 'Vui lòng chọn ít nhất một hình ảnh',
-          severity: 'error'
-        });
-        setLoading(false);
-        return;
-      }
-      
       // Upload ảnh mới nếu có
-      let newImageDocumentIds = [];
+      let newImageIds = [];
       if (imageFiles.length > 0) {
-        newImageDocumentIds = await uploadImages();
+        newImageIds = await uploadImages();
       }
       
       // Chuẩn bị dữ liệu để gửi lên server
       const serviceData = {
         name: currentService.name,
-        price: currentService.price,
         description: currentService.description,
-        slider: currentService.slider,
-        duration: currentService.duration
+        price: currentService.price,
+        duration: currentService.duration,
+        category: currentService.category,
+        requirements: currentService.requirements,
+        isActive: currentService.isActive
       };
       
-      // Thêm danh sách documentId hình ảnh (kết hợp ảnh đã có và ảnh mới)
-      if (imageDocumentIds.length > 0 || newImageDocumentIds.length > 0) {
-        serviceData.image = [...imageDocumentIds, ...newImageDocumentIds];
+      // Thêm danh sách ID hình ảnh
+      if (imageIds.length > 0 || newImageIds.length > 0) {
+        serviceData.image = [...imageIds, ...newImageIds];
       }
       
       console.log('Payload to send:', serviceData);
-      console.log(currentService)
+      
       if (isEdit) {
         // Cập nhật dịch vụ
         await axiosInstance.put(`/services/${currentService.documentId}`, {
@@ -338,19 +346,23 @@ const ProductsView = () => {
           severity: 'success'
         });
       }
-    
-
+      
+      // Làm sạch state sau khi lưu thành công
       setCurrentService({
         name: '',
-        price: '',
         description: '',
-        slider: false,
-        duration: 20
+        price: '',
+        duration: '',
+        category: '',
+        requirements: '',
+        isActive: true
       });
       setImageFiles([]);
-      setImageDocumentIds([]); 
+      setImageIds([]);
       setImagePreview([]);
       setPreviewSources([]);
+      
+      // Đóng dialog và tải lại danh sách
       setOpen(false);
       fetchServices();
     } catch (err) {
@@ -371,7 +383,7 @@ const ProductsView = () => {
     
     try {
       setLoading(true);
-      await axiosInstance.delete(`/services/${serviceToDelete.id}`);
+      await axiosInstance.delete(`/services/${serviceToDelete.documentId}`);
       
       setSnackbar({
         open: true,
@@ -403,11 +415,16 @@ const ProductsView = () => {
     setSnackbar({ ...snackbar, open: false });
   };
 
+  // Format giá tiền
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+  };
+
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h1">
-          Quản lý dịch vụ
+          Quản lý dịch vụ xe
         </Typography>
         <Button 
           variant="contained" 
@@ -430,11 +447,11 @@ const ProductsView = () => {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>ID</TableCell>
                 <TableCell>Tên dịch vụ</TableCell>
+                <TableCell>Loại</TableCell>
                 <TableCell>Giá</TableCell>
                 <TableCell>Thời gian (phút)</TableCell>
-                <TableCell>Hiển thị Slider</TableCell>
+                <TableCell>Trạng thái</TableCell>
                 <TableCell>Hình ảnh</TableCell>
                 <TableCell align="center">Thao tác</TableCell>
               </TableRow>
@@ -449,11 +466,24 @@ const ProductsView = () => {
               ) : (
                 services.map((service) => (
                   <TableRow key={service.id}>
-                    <TableCell>{service.id}</TableCell>
                     <TableCell>{service.name}</TableCell>
-                    <TableCell>{service.price}</TableCell>
+                    <TableCell>{service.category}</TableCell>
+                    <TableCell>{service.price && formatCurrency(service.price)}</TableCell>
                     <TableCell>{service.duration}</TableCell>
-                    <TableCell>{service.slider ? 'Có' : 'Không'}</TableCell>
+                    <TableCell>
+                      <Box
+                        sx={{
+                          display: 'inline-block',
+                          px: 1.5,
+                          py: 0.5,
+                          borderRadius: 1,
+                          backgroundColor: service.isActive ? 'success.light' : 'error.light',
+                          color: 'white'
+                        }}
+                      >
+                        {service.isActive ? 'Hoạt động' : 'Ngừng hoạt động'}
+                      </Box>
+                    </TableCell>
                     <TableCell>
                       {service.image && service.image.length > 0 ? (
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
@@ -499,118 +529,157 @@ const ProductsView = () => {
       <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
         <DialogTitle>{isEdit ? 'Chỉnh sửa dịch vụ' : 'Thêm dịch vụ mới'}</DialogTitle>
         <DialogContent>
-          <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <TextField
-              fullWidth
-              label="Tên dịch vụ"
-              name="name"
-              value={currentService.name}
-              onChange={handleChange}
-              required
-            />
-            
-            <TextField
-              fullWidth
-              label="Giá"
-              name="price"
-              value={currentService.price}
-              onChange={handleChange}
-              required
-            />
-            
-            <TextField
-              fullWidth
-              label="Mô tả"
-              name="description"
-              value={currentService.description}
-              onChange={handleChange}
-              multiline
-              rows={4}
-              required
-            />
-            
-            <TextField
-              fullWidth
-              label="Thời gian (phút)"
-              name="duration"
-              type="number"
-              value={currentService.duration}
-              onChange={handleChange}
-              required
-            />
-            
-            <FormControlLabel
-              control={
-                <Switch 
-                  checked={currentService.slider} 
-                  onChange={handleChange} 
-                  name="slider" 
-                />
-              }
-              label="Hiển thị trong slider"
-            />
-            
-            <Box>
-              <Button
-                variant="contained"
-                component="label"
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Tên dịch vụ"
+                name="name"
+                value={currentService.name}
+                onChange={handleChange}
+                required
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                select
+                label="Loại dịch vụ"
+                name="category"
+                value={currentService.category}
+                onChange={handleChange}
+                required
               >
-                Chọn hình ảnh
-                <input
-                  type="file"
-                  hidden
-                  multiple
-                  accept="image/*"
-                  onChange={handleImageChange}
-                />
-              </Button>
-              
-              <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                {imagePreview.map((url, index) => (
-                  <Box 
-                    key={index}
-                    sx={{ 
-                      position: 'relative',
-                      width: 120, 
-                      height: 120, 
-                      border: '1px solid #ddd',
-                      borderRadius: 1
-                    }}
-                  >
-                    <Box
-                      component="img"
-                      src={url}
-                      alt={`Preview ${index}`}
+                {SERVICE_CATEGORIES.map((option) => (
+                  <MenuItem key={option} value={option}>
+                    {option}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Giá dịch vụ"
+                name="price"
+                type="number"
+                value={currentService.price}
+                onChange={handleChange}
+                required
+                InputProps={{
+                  startAdornment: <span style={{ marginRight: 8 }}>VNĐ</span>,
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Thời gian thực hiện (phút)"
+                name="duration"
+                type="number"
+                value={currentService.duration}
+                onChange={handleChange}
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={currentService.isActive}
+                    onChange={handleChange}
+                    name="isActive"
+                    color="primary"
+                  />
+                }
+                label="Dịch vụ đang hoạt động"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Mô tả chi tiết"
+                name="description"
+                value={currentService.description}
+                onChange={handleChange}
+                multiline
+                rows={4}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Yêu cầu đặc biệt"
+                name="requirements"
+                value={currentService.requirements}
+                onChange={handleChange}
+                multiline
+                rows={2}
+                placeholder="Các yêu cầu đặc biệt để thực hiện dịch vụ (nếu có)"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <Box>
+                <Button
+                  variant="contained"
+                  component="label"
+                >
+                  Chọn hình ảnh
+                  <input
+                    type="file"
+                    hidden
+                    multiple
+                    accept="image/*"
+                    onChange={handleImageChange}
+                  />
+                </Button>
+                
+                <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                  {imagePreview.map((url, index) => (
+                    <Box 
+                      key={index}
                       sx={{ 
-                        width: '100%', 
-                        height: '100%', 
-                        objectFit: 'cover',
+                        position: 'relative',
+                        width: 120, 
+                        height: 120, 
+                        border: '1px solid #ddd',
                         borderRadius: 1
                       }}
-                    />
-                    <IconButton
-                      size="small"
-                      sx={{
-                        position: 'absolute',
-                        top: 2,
-                        right: 2,
-                        backgroundColor: 'rgba(255, 255, 255, 0.7)',
-                        '&:hover': {
-                          backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                        },
-                        width: 24,
-                        height: 24,
-                        p: 0
-                      }}
-                      onClick={() => handleRemoveImage(index)}
                     >
-                      <CloseIcon />
-                    </IconButton>
-                  </Box>
-                ))}
+                      <Box
+                        component="img"
+                        src={url}
+                        alt={`Preview ${index}`}
+                        sx={{ 
+                          width: '100%', 
+                          height: '100%', 
+                          objectFit: 'cover',
+                          borderRadius: 1
+                        }}
+                      />
+                      <IconButton
+                        size="small"
+                        sx={{
+                          position: 'absolute',
+                          top: 2,
+                          right: 2,
+                          backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                          '&:hover': {
+                            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                          },
+                          width: 24,
+                          height: 24,
+                          p: 0
+                        }}
+                        onClick={() => handleRemoveImage(index)}
+                      >
+                        <CloseIcon />
+                      </IconButton>
+                    </Box>
+                  ))}
+                </Box>
               </Box>
-            </Box>
-          </Box>
+            </Grid>
+          </Grid>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose} disabled={loading}>Hủy</Button>
@@ -670,4 +739,4 @@ const ProductsView = () => {
   );
 };
 
-export default ProductsView;
+export default ServiceManagement;

@@ -25,7 +25,7 @@ export const navData = [
   },
   {
     title: 'Đơn đặt dịch vụ',
-    path: '/products',
+    path: '/order-service',
     icon: icon('ic-cart'),
   },
   {

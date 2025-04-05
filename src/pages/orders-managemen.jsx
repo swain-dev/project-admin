@@ -31,7 +31,8 @@ import {
   CardContent,
   Tabs,
   Tab,
-  Stack
+  Stack,
+  Pagination
 } from '@mui/material';
 import axiosInstance from 'src/utils/axios';
 
@@ -50,13 +51,15 @@ const OrdersManagementView = () => {
   const [error, setError] = useState(null);
 
   // State cho phân trang
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalOrders, setTotalOrders] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
   // State cho lọc và tìm kiếm
   const [filters, setFilters] = useState({
     status_order: '',
+    paymentStatus: '',
     dateFrom: '',
     dateTo: '',
     searchTerm: ''
@@ -69,6 +72,7 @@ const OrdersManagementView = () => {
   // State cho cập nhật trạng thái
   const [statusUpdateOpen, setStatusUpdateOpen] = useState(false);
   const [newStatus, setNewStatus] = useState('');
+  const [newPaymentStatus, setNewPaymentStatus] = useState('');
 
   // State cho snackbar thông báo
   const [snackbar, setSnackbar] = useState({
@@ -94,12 +98,17 @@ const OrdersManagementView = () => {
     try {
       // Sử dụng cú pháp phân trang của Strapi
       const queryParams = new URLSearchParams();
-      queryParams.append('pagination[start]', page * rowsPerPage);
-      queryParams.append('pagination[limit]', rowsPerPage);
+      queryParams.append('pagination[page]', page);
+      queryParams.append('pagination[pageSize]', rowsPerPage);
       
       // Sử dụng cú pháp filter của Strapi
       if (filters.status_order) {
         queryParams.append('filters[status_order][$eq]', filters.status_order);
+      }
+      
+      // Filter theo trạng thái thanh toán
+      if (filters.paymentStatus) {
+        queryParams.append('filters[paymentStatus][$eq]', filters.paymentStatus);
       }
       
       if (filters.dateFrom) {
@@ -121,11 +130,15 @@ const OrdersManagementView = () => {
       // Thêm populate để lấy thông tin liên quan
       queryParams.append('populate', '*');
 
+      // Sắp xếp theo thời gian tạo mới nhất
+      queryParams.append('sort[0]', 'createdAt:desc');
+
       const response = await axiosInstance.get(`/orders?${queryParams.toString()}`);
       console.log('Orders response:', response);
       
       setOrders(response.data);
-      setTotalOrders(response.meta?.pagination?.total || response.data.length);
+      setTotalOrders(response.meta?.pagination?.total || 0);
+      setTotalPages(Math.ceil(response.meta?.pagination?.total / rowsPerPage) || 1);
       setError(null);
     } catch (err) {
       console.error('Error fetching orders:', err);
@@ -166,6 +179,7 @@ const OrdersManagementView = () => {
   const handleOpenStatusUpdate = (order) => {
     setSelectedOrder(order);
     setNewStatus(order.status_order);
+    setNewPaymentStatus(order.paymentStatus || 'unpaid');
     setStatusUpdateOpen(true);
   };
 
@@ -174,19 +188,23 @@ const OrdersManagementView = () => {
     setStatusUpdateOpen(false);
     setSelectedOrder(null);
     setNewStatus('');
+    setNewPaymentStatus('');
   };
 
   // Hàm cập nhật trạng thái đơn hàng
   const handleUpdateStatus = async () => {
-    if (!selectedOrder || !newStatus) return;
+    if (!selectedOrder || !newStatus || !newPaymentStatus) return;
 
     setLoading(true);
     try {
       await axiosInstance.put(`/orders/${selectedOrder.documentId}`, {
         data: {
           status_order: newStatus,
+          paymentStatus: newPaymentStatus,
+          paymentReference: selectedOrder.paymentReference,
+          cancelReason: selectedOrder.cancelReason,
           ...(newStatus === 'delivered' && { deliveredAt: new Date().toISOString() }),
-          ...(newStatus === 'cancelled' && { cancelledAt: new Date().toISOString() })
+          ...(newStatus === 'cancelled' && { cancelledAt: new Date().toISOString() }),
         }
       });
 
@@ -214,7 +232,7 @@ const OrdersManagementView = () => {
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters(prev => ({ ...prev, [name]: value }));
-    setPage(0); // Reset về trang đầu tiên khi thay đổi bộ lọc
+    setPage(1); // Reset về trang đầu tiên khi thay đổi bộ lọc
   };
 
   // Xử lý tìm kiếm
@@ -227,11 +245,12 @@ const OrdersManagementView = () => {
   const handleResetFilters = () => {
     setFilters({
       status_order: '',
+      paymentStatus: '',
       dateFrom: '',
       dateTo: '',
       searchTerm: ''
     });
-    setPage(0);
+    setPage(1);
   };
 
   // Xử lý đóng snackbar
@@ -247,7 +266,13 @@ const OrdersManagementView = () => {
     setTabValue(newValue);
   };
 
-  // Render chip trạng thái với màu tương ứng
+  // Xử lý thay đổi trang
+  const handlePageChange = (event, value) => {
+    setPage(value);
+    window.scrollTo(0, 0);
+  };
+
+  // Render chip trạng thái đơn hàng với màu tương ứng
   const renderStatusChip = (status) => {
     let color = 'default';
     let label = status;
@@ -278,6 +303,41 @@ const OrdersManagementView = () => {
         label = 'Đã hủy';
         break;
       default:
+        break;
+    }
+
+    return <Chip label={label} color={color} size="small" />;
+  };
+
+  // Render chip trạng thái thanh toán với màu tương ứng
+  const renderPaymentStatusChip = (status) => {
+    let color = 'default';
+    let label = status;
+
+    switch (status) {
+      case 'unpaid':
+        color = 'warning';
+        label = 'Chưa thanh toán';
+        break;
+      case 'processing':
+        color = 'info';
+        label = 'Đang xử lý';
+        break;
+      case 'partially_paid':
+        color = 'secondary';
+        label = 'Thanh toán một phần';
+        break;
+      case 'paid':
+        color = 'success';
+        label = 'Đã thanh toán';
+        break;
+      case 'refunded':
+        color = 'error';
+        label = 'Đã hoàn tiền';
+        break;
+      default:
+        label = 'Chưa thanh toán';
+        color = 'warning';
         break;
     }
 
@@ -328,10 +388,10 @@ const OrdersManagementView = () => {
             onChange={handleFilterChange}
           />
           <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel id="status-filter-label">Trạng thái</InputLabel>
+            <InputLabel id="status-filter-label">Trạng thái đơn</InputLabel>
             <Select
               labelId="status-filter-label"
-              label="Trạng thái"
+              label="Trạng thái đơn"
               name="status_order"
               value={filters.status_order}
               onChange={handleFilterChange}
@@ -345,6 +405,23 @@ const OrdersManagementView = () => {
               <MenuItem value="cancelled">Đã hủy</MenuItem>
             </Select>
           </FormControl>
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel id="payment-status-filter-label">Trạng thái thanh toán</InputLabel>
+            <Select
+              labelId="payment-status-filter-label"
+              label="Trạng thái thanh toán"
+              name="paymentStatus"
+              value={filters.paymentStatus}
+              onChange={handleFilterChange}
+            >
+              <MenuItem value="">Tất cả</MenuItem>
+              <MenuItem value="unpaid">Chưa thanh toán</MenuItem>
+              <MenuItem value="processing">Đang xử lý</MenuItem>
+              <MenuItem value="partially_paid">Thanh toán một phần</MenuItem>
+              <MenuItem value="paid">Đã thanh toán</MenuItem>
+              <MenuItem value="refunded">Đã hoàn tiền</MenuItem>
+            </Select>
+          </FormControl>
           <Button 
             variant="contained" 
             type="submit"
@@ -352,12 +429,6 @@ const OrdersManagementView = () => {
           >
             Tìm kiếm
           </Button>
-          {/* <Button 
-            variant="outlined" 
-            onClick={handleResetFilters}
-          >
-            Đặt lại
-          </Button> */}
           <Button 
             variant="text" 
             onClick={() => setExpandedFilters(!expandedFilters)}
@@ -388,6 +459,13 @@ const OrdersManagementView = () => {
               onChange={handleFilterChange}
               InputLabelProps={{ shrink: true }}
             />
+            <Button 
+              variant="outlined" 
+              onClick={handleResetFilters}
+              size="small"
+            >
+              Đặt lại bộ lọc
+            </Button>
           </Box>
         )}
       </Paper>
@@ -399,15 +477,16 @@ const OrdersManagementView = () => {
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 
       {/* Bảng danh sách đơn hàng */}
-      <TableContainer component={Paper}>
+      <TableContainer component={Paper} sx={{ mb: 3 }}>
         <Table>
-          <TableHead>
+          <TableHead sx={{ backgroundColor: 'primary.light' }}>
             <TableRow>
               <TableCell>Mã đơn hàng</TableCell>
               <TableCell>Khách hàng</TableCell>
               <TableCell>Ngày đặt</TableCell>
               <TableCell>Tổng tiền</TableCell>
-              <TableCell>Trạng thái</TableCell>
+              <TableCell>Trạng thái đơn</TableCell>
+              <TableCell>Trạng thái thanh toán</TableCell>
               <TableCell>Phương thức thanh toán</TableCell>
               <TableCell align="center">Thao tác</TableCell>
             </TableRow>
@@ -415,18 +494,19 @@ const OrdersManagementView = () => {
           <TableBody>
             {orders.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} align="center">
+                <TableCell colSpan={8} align="center">
                   {loading ? 'Đang tải...' : 'Không có đơn hàng nào'}
                 </TableCell>
               </TableRow>
             ) : (
               orders.map((order) => (
-                <TableRow key={order.id}>
+                <TableRow key={order.id} sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
                   <TableCell>{order.orderNumber}</TableCell>
                   <TableCell>{order.user?.username || 'N/A'}</TableCell>
                   <TableCell>{formatDateTime(order.createdAt)}</TableCell>
                   <TableCell>{formatCurrency(order.totalAmount)}</TableCell>
                   <TableCell>{renderStatusChip(order.status_order)}</TableCell>
+                  <TableCell>{renderPaymentStatusChip(order.paymentStatus || 'unpaid')}</TableCell>
                   <TableCell>
                     {order.paymentMethod === 'cod' && 'Tiền mặt khi nhận hàng'}
                     {order.paymentMethod === 'bank_transfer' && 'Chuyển khoản'}
@@ -444,7 +524,10 @@ const OrdersManagementView = () => {
                       color="secondary" 
                       onClick={() => handleOpenStatusUpdate(order)}
                       title="Cập nhật trạng thái"
-                      disabled={order.status_order === 'delivered' || order.status_order === 'cancelled'}
+                      disabled={
+                        (order.status_order === 'delivered' && order.paymentStatus === 'paid') || 
+                        (order.status_order === 'cancelled' && order.paymentStatus === 'refunded')
+                      }
                     >
                       <EditIcon />
                     </IconButton>
@@ -455,6 +538,20 @@ const OrdersManagementView = () => {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* Phân trang */}
+      {totalPages > 1 && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 3 }}>
+          <Pagination 
+            count={totalPages} 
+            page={page} 
+            onChange={handlePageChange}
+            color="primary"
+            showFirstButton
+            showLastButton
+          />
+        </Box>
+      )}
 
       {/* Dialog chi tiết đơn hàng */}
       <Dialog 
@@ -557,12 +654,18 @@ const OrdersManagementView = () => {
                               </Typography>
                               <Typography>
                                 <strong>Trạng thái:</strong>{' '}
-                                <Chip 
-                                  label={selectedOrder.paymentStatus === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán'} 
-                                  color={selectedOrder.paymentStatus === 'paid' ? 'success' : 'warning'} 
-                                  size="small"
-                                />
+                                {renderPaymentStatusChip(selectedOrder.paymentStatus || 'unpaid')}
                               </Typography>
+                              {selectedOrder.paidAt && (
+                                <Typography>
+                                  <strong>Ngày thanh toán:</strong> {formatDateTime(selectedOrder.paidAt)}
+                                </Typography>
+                              )}
+                              {selectedOrder.paymentReference && (
+                                <Typography>
+                                  <strong>Mã giao dịch:</strong> {selectedOrder.paymentReference}
+                                </Typography>
+                              )}
                             </Stack>
                           </Grid>
                           <Grid item xs={12} md={6}>
@@ -646,7 +749,8 @@ const OrdersManagementView = () => {
               )}
             </DialogContent>
             <DialogActions>
-              {selectedOrder.status_order !== 'delivered' && selectedOrder.status_order !== 'cancelled' && (
+              {!((selectedOrder.status_order === 'delivered' && selectedOrder.paymentStatus === 'paid') || 
+                (selectedOrder.status_order === 'cancelled' && selectedOrder.paymentStatus === 'refunded')) && (
                 <Button 
                   color="secondary" 
                   onClick={() => handleOpenStatusUpdate(selectedOrder)}
@@ -664,13 +768,20 @@ const OrdersManagementView = () => {
       <Dialog
         open={statusUpdateOpen}
         onClose={handleCloseStatusUpdate}
+        maxWidth="sm"
+        fullWidth
       >
         <DialogTitle>Cập nhật trạng thái đơn hàng</DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 2 }}>
             Cập nhật trạng thái cho đơn hàng #{selectedOrder?.orderNumber}
           </DialogContentText>
-          <FormControl fullWidth sx={{ mt: 1 }}>
+          
+          {/* Trạng thái đơn hàng */}
+          <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>
+            Trạng thái đơn hàng
+          </Typography>
+          <FormControl fullWidth size="small" sx={{ mb: 3 }}>
             <InputLabel id="new-status-label">Trạng thái mới</InputLabel>
             <Select
               labelId="new-status-label"
@@ -686,12 +797,55 @@ const OrdersManagementView = () => {
               <MenuItem value="cancelled">Đã hủy</MenuItem>
             </Select>
           </FormControl>
+          
+          {/* Trạng thái thanh toán */}
+          <Typography variant="subtitle2" gutterBottom>
+            Trạng thái thanh toán
+          </Typography>
+          <FormControl fullWidth size="small" sx={{ mb: 3 }}>
+            <InputLabel id="new-payment-status-label">Trạng thái thanh toán</InputLabel>
+            <Select
+              labelId="new-payment-status-label"
+              value={newPaymentStatus}
+              label="Trạng thái thanh toán"
+              onChange={(e) => setNewPaymentStatus(e.target.value)}
+            >
+              <MenuItem value="unpaid">Chưa thanh toán</MenuItem>
+              <MenuItem value="processing">Đang xử lý thanh toán</MenuItem>
+              <MenuItem value="partially_paid">Thanh toán một phần</MenuItem>
+              <MenuItem value="paid">Đã thanh toán</MenuItem>
+              <MenuItem value="refunded">Đã hoàn tiền</MenuItem>
+            </Select>
+          </FormControl>
+          
+          {/* Thông tin thanh toán bổ sung */}
+          {newPaymentStatus === 'paid' && (
+            <TextField
+              fullWidth
+              size="small"
+              label="Mã giao dịch / Ghi chú thanh toán"
+              name="paymentReference"
+              sx={{ mb: 2 }}
+              onChange={(e) => {
+                if (selectedOrder) {
+                  setSelectedOrder({
+                    ...selectedOrder,
+                    paymentReference: e.target.value
+                  });
+                }
+              }}
+              value={selectedOrder?.paymentReference || ''}
+            />
+          )}
+          
+          {/* Lý do hủy đơn */}
           {newStatus === 'cancelled' && (
             <TextField
               fullWidth
               label="Lý do hủy đơn"
               multiline
               rows={2}
+              size="small"
               sx={{ mt: 2 }}
               onChange={(e) => {
                 if (selectedOrder) {
@@ -701,7 +855,21 @@ const OrdersManagementView = () => {
                   });
                 }
               }}
+              value={selectedOrder?.cancelReason || ''}
             />
+          )}
+          
+          {/* Thông báo tự động khi trạng thái đơn hàng và thanh toán không phù hợp */}
+          {newStatus === 'delivered' && newPaymentStatus !== 'paid' && newPaymentStatus !== 'partially_paid' && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              Đơn hàng được đánh dấu là đã giao nhưng chưa được thanh toán đầy đủ. Với phương thức COD, bạn nên chuyển trạng thái thanh toán sang "Đã thanh toán".
+            </Alert>
+          )}
+          
+          {newStatus === 'cancelled' && newPaymentStatus === 'paid' && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              Đơn hàng đã thanh toán nhưng đang được đánh dấu hủy. Bạn có thể cần cập nhật trạng thái thanh toán sang "Đã hoàn tiền".
+            </Alert>
           )}
         </DialogContent>
         <DialogActions>
@@ -710,7 +878,7 @@ const OrdersManagementView = () => {
             onClick={handleUpdateStatus}
             variant="contained"
             color="primary"
-            disabled={loading || !newStatus}
+            disabled={loading || !newStatus || !newPaymentStatus}
           >
             {loading ? <CircularProgress size={24} /> : 'Cập nhật'}
           </Button>
