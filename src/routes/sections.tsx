@@ -10,7 +10,7 @@ import { DashboardLayout } from 'src/layouts/dashboard';
 
 // ----------------------------------------------------------------------
 
-export const HomePage = lazy(() => import('src/pages/home'));
+export const HomePage = lazy(() => import('src/pages/dashboard'));
 export const UserPage = lazy(() => import('src/pages/user'));
 export const ChatPage = lazy(() => import('src/pages/chat'));
 export const SignInPage = lazy(() => import('src/pages/sign-in'));
