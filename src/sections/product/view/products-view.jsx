@@ -1,30 +1,33 @@
 import React, { useState, useEffect } from 'react';
+
 import {
   Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
+  Grid,
   Paper,
   Table,
+  Alert,
+  Button,
+  Dialog,
+  Switch,
+  TableRow,
+  Snackbar,
+  MenuItem,
   TableBody,
   TableCell,
-  TableContainer,
   TableHead,
-  TableRow,
   TextField,
   Typography,
-  CircularProgress,
-  Snackbar,
-  Alert,
   IconButton,
-  MenuItem,
-  Grid,
+  DialogTitle,
+  DialogActions,
+  DialogContent,
+  TableContainer,
+  CircularProgress,
   FormControlLabel,
-  Switch
+  DialogContentText,
+  Pagination
 } from '@mui/material';
+
 import axiosInstance from 'src/utils/axios';
 
 // Thay thế các Icon với Unicode hoặc text
@@ -51,6 +54,12 @@ const ServiceManagement = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // State cho phân trang
+  const [page, setPage] = useState(1);
+  const [rowsPerPage] = useState(10);
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
   // State cho form thêm/sửa
   const [open, setOpen] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
@@ -63,10 +72,9 @@ const ServiceManagement = () => {
     requirements: '',
     isActive: true
   });
-  const [imageFiles, setImageFiles] = useState([]);
-  const [imageIds, setImageIds] = useState([]);
-  const [imagePreview, setImagePreview] = useState([]);
-  const [previewSources, setPreviewSources] = useState([]);
+  const [imageFile, setImageFile] = useState(null);
+  const [imageId, setImageId] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
 
   // State cho dialog xóa
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -82,15 +90,35 @@ const ServiceManagement = () => {
   // Lấy danh sách dịch vụ khi component mount
   useEffect(() => {
     fetchServices();
-  }, []);
+  }, [page]);
 
-  // Hàm lấy danh sách dịch vụ từ API
+  // Hàm lấy danh sách dịch vụ từ API với phân trang
   const fetchServices = async () => {
     setLoading(true);
     try {
-      const response = await axiosInstance.get('/services?populate=*');
+      // Sử dụng Strapi pagination API
+      const queryParams = new URLSearchParams();
+      queryParams.append('pagination[page]', page);
+      queryParams.append('pagination[pageSize]', rowsPerPage);
+      queryParams.append('sort[0]', 'createdAt:desc');
+      queryParams.append('populate', '*');
+
+      const response = await axiosInstance.get(`/services?${queryParams.toString()}`);
       console.log('Services response:', response);
+      
+      // Cập nhật danh sách services từ data
       setServices(response.data);
+      
+      // Cập nhật thông tin phân trang
+      if (response.meta && response.meta.pagination) {
+        setTotalItems(response.meta.pagination.total);
+        setTotalPages(response.meta.pagination.pageCount);
+      } else {
+        // Nếu không có meta data, tính toán số trang dựa trên data
+        setTotalItems(response.data.length);
+        setTotalPages(Math.ceil(response.data.length / rowsPerPage) || 1);
+      }
+      
       setError(null);
     } catch (err) {
       console.error('Error fetching services:', err);
@@ -98,6 +126,11 @@ const ServiceManagement = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Xử lý thay đổi trang
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
   };
 
   // Mở dialog thêm dịch vụ mới
@@ -111,10 +144,9 @@ const ServiceManagement = () => {
       requirements: '',
       isActive: true
     });
-    setImageFiles([]);
-    setImageIds([]);
-    setImagePreview([]);
-    setPreviewSources([]);
+    setImageFile(null);
+    setImageId(null);
+    setImagePreview('');
     setIsEdit(false);
     setOpen(true);
   };
@@ -135,29 +167,17 @@ const ServiceManagement = () => {
     
     // Nếu có hình ảnh, hiển thị và lưu lại ID
     if (service.image && service.image.length > 0) {
-      // Lưu ID của ảnh
-      setImageIds(service.image.map(img => img.id));
+      // Lưu ID của ảnh đầu tiên (chỉ sử dụng 1 ảnh)
+      setImageId(service.image[0].id);
 
-      // Hiển thị preview
-      const previews = service.image.map(img => 
-        `http://localhost:1337${img.url}`
-      );
-      setImagePreview(previews);
-      
-      // Đánh dấu các preview có nguồn gốc từ ảnh đã tải lên
-      setPreviewSources(service.image.map((img, index) => ({
-        type: 'uploaded',
-        index: index,
-        id: img.id,
-        documentId: img.documentId
-      })));
+      // Hiển thị preview cho ảnh đầu tiên
+      setImagePreview(`http://localhost:1337${service.image[0].url}`);
     } else {
-      setImageIds([]);
-      setImagePreview([]);
-      setPreviewSources([]);
+      setImageId(null);
+      setImagePreview('');
     }
     
-    setImageFiles([]);
+    setImageFile(null);
     setIsEdit(true);
     setOpen(true);
   };
@@ -190,84 +210,32 @@ const ServiceManagement = () => {
 
   // Xử lý khi chọn file ảnh
   const handleImageChange = (e) => {
-    if (e.target.files) {
-      const filesArray = Array.from(e.target.files);
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setImageFile(file);
       
-      // Thêm file mới vào danh sách
-      setImageFiles(prev => [...prev, ...filesArray]);
+      // Tạo URL preview cho hình ảnh
+      const previewUrl = URL.createObjectURL(file);
+      setImagePreview(previewUrl);
       
-      // Tạo preview cho hình ảnh mới
-      const newPreviews = filesArray.map(file => URL.createObjectURL(file));
-      
-      // Cập nhật danh sách preview
-      setImagePreview(prev => [...prev, ...newPreviews]);
-      
-      // Cập nhật nguồn gốc preview
-      const currentLength = previewSources.length;
-      const newPreviewSources = filesArray.map((_, index) => ({
-        type: 'file',
-        index: currentLength + index,
-        fileIndex: imageFiles.length + index
-      }));
-      
-      setPreviewSources(prev => [...prev, ...newPreviewSources]);
+      // Reset image ID vì sẽ upload ảnh mới
+      setImageId(null);
     }
   };
 
-  // Xóa một ảnh từ preview
-  const handleRemoveImage = (previewIndex) => {
-    const source = previewSources[previewIndex];
-    
-    if (source.type === 'file') {
-      // Nếu là file mới, xóa khỏi danh sách file
-      const newImageFiles = [...imageFiles];
-      newImageFiles.splice(source.fileIndex, 1);
-      setImageFiles(newImageFiles);
-      
-      // Cập nhật indices
-      const updatedPreviewSources = previewSources.filter((_, index) => index !== previewIndex)
-        .map(s => {
-          if (s.type === 'file' && s.fileIndex > source.fileIndex) {
-            return { ...s, fileIndex: s.fileIndex - 1 };
-          }
-          return s;
-        });
-      
-      setPreviewSources(updatedPreviewSources);
-    } else if (source.type === 'uploaded') {
-      // Nếu là ảnh đã tải lên, xóa ID khỏi danh sách
-      const newImageIds = [...imageIds];
-      
-      // Xóa đúng ảnh tại vị trí index trong danh sách
-      newImageIds.splice(source.index, 1);
-      setImageIds(newImageIds);
-      
-      // Cập nhật indices
-      const updatedPreviewSources = previewSources.filter((_, index) => index !== previewIndex)
-        .map(s => {
-          if (s.type === 'uploaded' && s.index > source.index) {
-            return { ...s, index: s.index - 1 };
-          }
-          return s;
-        });
-      
-      setPreviewSources(updatedPreviewSources);
-    }
-    
-    // Xóa preview
-    const newImagePreview = [...imagePreview];
-    newImagePreview.splice(previewIndex, 1);
-    setImagePreview(newImagePreview);
+  // Xóa ảnh hiện tại
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setImageId(null);
+    setImagePreview('');
   };
 
   // Upload ảnh lên server và lấy về thông tin
-  const uploadImages = async () => {
-    if (imageFiles.length === 0) return [];
+  const uploadImage = async () => {
+    if (!imageFile) return null;
     
     const formData = new FormData();
-    imageFiles.forEach(file => {
-      formData.append('files', file);
-    });
+    formData.append('files', imageFile);
     
     try {
       const response = await axiosInstance.post('/upload', formData, {
@@ -278,9 +246,13 @@ const ServiceManagement = () => {
       
       console.log('Upload response:', response);
       
-      return response.map(img => img.id);
+      // Trả về ID của ảnh đầu tiên
+      if (response && response.length > 0) {
+        return response[0].id;
+      }
+      return null;
     } catch (error) {
-      console.error('Error uploading images:', error);
+      console.error('Error uploading image:', error);
       throw error;
     }
   };
@@ -302,9 +274,9 @@ const ServiceManagement = () => {
       }
       
       // Upload ảnh mới nếu có
-      let newImageIds = [];
-      if (imageFiles.length > 0) {
-        newImageIds = await uploadImages();
+      let uploadedImageId = null;
+      if (imageFile) {
+        uploadedImageId = await uploadImage();
       }
       
       // Chuẩn bị dữ liệu để gửi lên server
@@ -318,9 +290,13 @@ const ServiceManagement = () => {
         isActive: currentService.isActive
       };
       
-      // Thêm danh sách ID hình ảnh
-      if (imageIds.length > 0 || newImageIds.length > 0) {
-        serviceData.image = [...imageIds, ...newImageIds];
+      // Thêm ID hình ảnh nếu có
+      if (uploadedImageId || imageId) {
+        // Sử dụng ID ảnh đã upload hoặc ID ảnh hiện tại
+        serviceData.image = [uploadedImageId || imageId];
+      } else {
+        // Nếu không có ảnh (đã xóa ảnh cũ), gửi mảng rỗng
+        serviceData.image = [];
       }
       
       console.log('Payload to send:', serviceData);
@@ -357,10 +333,9 @@ const ServiceManagement = () => {
         requirements: '',
         isActive: true
       });
-      setImageFiles([]);
-      setImageIds([]);
-      setImagePreview([]);
-      setPreviewSources([]);
+      setImageFile(null);
+      setImageId(null);
+      setImagePreview('');
       
       // Đóng dialog và tải lại danh sách
       setOpen(false);
@@ -394,7 +369,13 @@ const ServiceManagement = () => {
       // Đóng dialog và tải lại danh sách
       setDeleteDialogOpen(false);
       setServiceToDelete(null);
-      fetchServices();
+      
+      // Nếu đang ở trang cuối cùng và chỉ có 1 item, cần trở về trang trước đó
+      if (page > 1 && services.length === 1) {
+        setPage(page - 1);
+      } else {
+        fetchServices();
+      }
     } catch (err) {
       console.error('Error deleting service:', err);
       setSnackbar({
@@ -416,9 +397,7 @@ const ServiceManagement = () => {
   };
 
   // Format giá tiền
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
-  };
+  const formatCurrency = (amount) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 
   return (
     <Box sx={{ p: 3 }}>
@@ -436,93 +415,110 @@ const ServiceManagement = () => {
         </Button>
       </Box>
 
-      {loading && <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-        <CircularProgress />
-      </Box>}
+      {loading && services.length === 0 && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+          <CircularProgress />
+        </Box>
+      )}
 
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 
       {!loading && !error && (
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Tên dịch vụ</TableCell>
-                <TableCell>Loại</TableCell>
-                <TableCell>Giá</TableCell>
-                <TableCell>Thời gian (phút)</TableCell>
-                <TableCell>Trạng thái</TableCell>
-                <TableCell>Hình ảnh</TableCell>
-                <TableCell align="center">Thao tác</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {services.length === 0 ? (
+        <>
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
-                    Không có dịch vụ nào
-                  </TableCell>
+                  <TableCell>Tên dịch vụ</TableCell>
+                  <TableCell>Loại</TableCell>
+                  <TableCell>Giá</TableCell>
+                  <TableCell>Thời gian (phút)</TableCell>
+                  <TableCell>Trạng thái</TableCell>
+                  <TableCell>Hình ảnh</TableCell>
+                  <TableCell align="center">Thao tác</TableCell>
                 </TableRow>
-              ) : (
-                services.map((service) => (
-                  <TableRow key={service.id}>
-                    <TableCell>{service.name}</TableCell>
-                    <TableCell>{service.category}</TableCell>
-                    <TableCell>{service.price && formatCurrency(service.price)}</TableCell>
-                    <TableCell>{service.duration}</TableCell>
-                    <TableCell>
-                      <Box
-                        sx={{
-                          display: 'inline-block',
-                          px: 1.5,
-                          py: 0.5,
-                          borderRadius: 1,
-                          backgroundColor: service.isActive ? 'success.light' : 'error.light',
-                          color: 'white'
-                        }}
-                      >
-                        {service.isActive ? 'Hoạt động' : 'Ngừng hoạt động'}
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      {service.image && service.image.length > 0 ? (
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                          {service.image.map((img, index) => (
-                            <Box 
-                              key={index}
-                              component="img"
-                              src={`http://localhost:1337${img.url}`}
-                              alt={service.name}
-                              sx={{ width: 50, height: 50, objectFit: 'cover' }}
-                            />
-                          ))}
-                        </Box>
-                      ) : (
-                        'Không có hình ảnh'
-                      )}
-                    </TableCell>
-                    <TableCell align="center">
-                      <IconButton 
-                        color="primary" 
-                        onClick={() => handleEdit(service)}
-                        title="Chỉnh sửa"
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton 
-                        color="error" 
-                        onClick={() => handleDeleteConfirm(service)}
-                        title="Xóa"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
+              </TableHead>
+              <TableBody>
+                {services.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center">
+                      Không có dịch vụ nào
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
+                ) : (
+                  services.map((service) => (
+                    <TableRow key={service.id}>
+                      <TableCell>{service.name}</TableCell>
+                      <TableCell>{service.category}</TableCell>
+                      <TableCell>{service.price && formatCurrency(service.price)}</TableCell>
+                      <TableCell>{service.duration}</TableCell>
+                      <TableCell>
+                        <Box
+                          sx={{
+                            display: 'inline-block',
+                            px: 1.5,
+                            py: 0.5,
+                            borderRadius: 1,
+                            backgroundColor: service.isActive ? 'success.light' : 'error.light',
+                            color: 'white'
+                          }}
+                        >
+                          {service.isActive ? 'Hoạt động' : 'Ngừng hoạt động'}
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        {service.image && service.image.length > 0 ? (
+                          <Box 
+                            component="img"
+                            src={`http://localhost:1337${service.image[0].url}`}
+                            alt={service.name}
+                            sx={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 1 }}
+                          />
+                        ) : (
+                          'Không có hình ảnh'
+                        )}
+                      </TableCell>
+                      <TableCell align="center">
+                        <IconButton 
+                          color="primary" 
+                          onClick={() => handleEdit(service)}
+                          title="Chỉnh sửa"
+                        >
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton 
+                          color="error" 
+                          onClick={() => handleDeleteConfirm(service)}
+                          title="Xóa"
+                        >
+                          <DeleteIcon />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          {/* Phân trang */}
+          {totalPages > 1 && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', mt: 3, mb: 2 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mr: 2 }}>
+                Hiển thị {services.length > 0 ? ((page - 1) * rowsPerPage + 1) : 0} - {Math.min(page * rowsPerPage, totalItems)} trên {totalItems} dịch vụ
+              </Typography>
+              <Pagination 
+                count={totalPages} 
+                page={page} 
+                onChange={handleChangePage}
+                color="primary"
+                size="medium"
+                showFirstButton
+                showLastButton
+              />
+            </Box>
+          )}
+        </>
       )}
 
       {/* Dialog thêm/sửa dịch vụ */}
@@ -627,16 +623,14 @@ const ServiceManagement = () => {
                   <input
                     type="file"
                     hidden
-                    multiple
                     accept="image/*"
                     onChange={handleImageChange}
                   />
                 </Button>
                 
-                <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                  {imagePreview.map((url, index) => (
+                {imagePreview && (
+                  <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                     <Box 
-                      key={index}
                       sx={{ 
                         position: 'relative',
                         width: 120, 
@@ -647,8 +641,8 @@ const ServiceManagement = () => {
                     >
                       <Box
                         component="img"
-                        src={url}
-                        alt={`Preview ${index}`}
+                        src={imagePreview}
+                        alt="Preview"
                         sx={{ 
                           width: '100%', 
                           height: '100%', 
@@ -670,13 +664,13 @@ const ServiceManagement = () => {
                           height: 24,
                           p: 0
                         }}
-                        onClick={() => handleRemoveImage(index)}
+                        onClick={handleRemoveImage}
                       >
                         <CloseIcon />
                       </IconButton>
                     </Box>
-                  ))}
-                </Box>
+                  </Box>
+                )}
               </Box>
             </Grid>
           </Grid>

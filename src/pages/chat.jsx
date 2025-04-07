@@ -185,7 +185,7 @@ export default function MessageManagement() {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+    <Container maxWidth="xl" sx={{ mt: 0, mb: 0 }}>
       <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
         Quản lý Tin nhắn
       </Typography>

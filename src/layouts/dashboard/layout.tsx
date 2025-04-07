@@ -1,10 +1,12 @@
 import type { Theme, SxProps, Breakpoint } from '@mui/material/styles';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'src/routes/hooks';
 
 import Box from '@mui/material/Box';
 import Alert from '@mui/material/Alert';
 import { useTheme } from '@mui/material/styles';
+import { Snackbar } from '@mui/material';
 
 import { _langs, _notifications } from 'src/_mock';
 
@@ -35,10 +37,77 @@ export type DashboardLayoutProps = {
 
 export function DashboardLayout({ sx, children, header }: DashboardLayoutProps) {
   const theme = useTheme();
-
+  const router = useRouter();
   const [navOpen, setNavOpen] = useState(false);
-
   const layoutQuery: Breakpoint = 'lg';
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+
+  // Hàm logout
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    router.push('/login');
+  };
+
+  // Kiểm tra thông tin user
+  const checkUserInfo = () => {
+    try {
+      const userJson = localStorage.getItem('user');
+      
+      if (!userJson) {
+        // Nếu không có thông tin user, đăng xuất
+        handleLogout();
+        return;
+      }
+      
+      const user = JSON.parse(userJson);
+      
+      // Kiểm tra nếu manager không phải true
+      if (user.manager !== true) {
+        setAlertMessage('Bạn không có quyền truy cập vào hệ thống quản trị.');
+        setAlertOpen(true);
+        
+        // Logout sau 3 giây
+        setTimeout(() => {
+          handleLogout();
+        }, 3000);
+      }
+    } catch (error) {
+      console.error('Error checking user info:', error);
+      handleLogout();
+    }
+  };
+
+  // Kiểm tra xác thực khi component được tải lần đầu
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      // Nếu không có token, chuyển hướng đến trang đăng nhập
+      router.push('/login');
+    } else {
+      // Nếu có token, kiểm tra thông tin user
+      checkUserInfo();
+    }
+  }, []);
+
+  // Kiểm tra thông tin user khi router thay đổi
+  useEffect(() => {
+    const handleRouteChange = () => {
+      const token = localStorage.getItem('token');
+      if (token) {
+        checkUserInfo();
+      }
+    };
+
+    // Đăng ký sự kiện với router
+    router.events?.subscribe('routeChangeComplete', handleRouteChange);
+
+    // Cleanup
+    return () => {
+      router.events?.unsubscribe('routeChangeComplete', handleRouteChange);
+    };
+  }, [router]);
 
   return (
     <LayoutSection
@@ -86,19 +155,14 @@ export function DashboardLayout({ sx, children, header }: DashboardLayoutProps) 
                 <AccountPopover
                   data={[
                     {
-                      label: 'Home',
-                      href: '/',
-                      icon: <Iconify width={22} icon="solar:home-angle-bold-duotone" />,
+                      label: 'Hồ sơ người dùng',
+                      href: '/profile',
+                      icon: <Iconify width={22} icon="solar:user-bold-duotone" />,
                     },
                     {
-                      label: 'Profile',
-                      href: '#',
-                      icon: <Iconify width={22} icon="solar:shield-keyhole-bold-duotone" />,
-                    },
-                    {
-                      label: 'Settings',
-                      href: '#',
-                      icon: <Iconify width={22} icon="solar:settings-bold-duotone" />,
+                      label: 'Đổi mật khẩu',
+                      href: '/change-password',
+                      icon: <Iconify width={22} icon="solar:lock-password-bold-duotone" />,
                     },
                   ]}
                 />
@@ -135,6 +199,19 @@ export function DashboardLayout({ sx, children, header }: DashboardLayoutProps) 
         ...sx,
       }}
     >
+      {/* Thông báo khi phát hiện không có quyền truy cập */}
+      <Snackbar
+        open={alertOpen}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        message={alertMessage}
+        ContentProps={{
+          sx: {
+            bgcolor: 'error.main',
+            color: 'error.contrastText',
+          },
+        }}
+      />
+
       <Main>{children}</Main>
     </LayoutSection>
   );

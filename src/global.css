@@ -138,3 +138,17 @@ input[type='number']::-webkit-inner-spin-button {
 
 .box_message_admin_avatar {
 }
+
+.layout-auth-wrapper {
+  max-width: max-content;
+  min-width: 500px !important;
+}
+
+.logo-dash {
+  width: 158px !important;
+  height: 135px !important;
+  object-fit: contain !important;
+  border-radius: 50% !important;
+  align-self: center;
+  margin-bottom: 30px;
+}

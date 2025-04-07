@@ -27,6 +27,14 @@ export const OrdersSercivePage = lazy(() => import('src/pages/service/order-serv
 // blogs
 export const BlogPage = lazy(() => import('src/pages/articles'));
 export const CrteateBlogPage = lazy(() => import('src/pages/new-article'));
+// auth
+export const LoginPage = lazy(() => import('src/pages/auth/login'));
+export const ChangePasswordPage = lazy(() => import('src/pages/auth/change-password'));
+export const ProfilePage = lazy(() => import('src/pages/auth/profile'));
+export const EditProfilePage = lazy(() => import('src/pages/auth/edit-profile'));
+export const RegisterPage = lazy(() => import('src/pages/auth/register'));
+export const ForgotPasswordPage = lazy(() => import('src/pages/auth/forgot-password'));
+export const ResetPasswordPage = lazy(() => import('src/pages/auth/reset-password'));
 // ----------
 export const Page404 = lazy(() => import('src/pages/page-not-found'));
 
@@ -71,7 +79,14 @@ export function Router() {
         { path: 'blog', element: <BlogPage /> },
         { path: 'blog/create', element: <CrteateBlogPage /> },
         { path: 'blog/edit/:id', element: <CrteateBlogPage /> },
+         // auth
+         { path: 'change-password', element: <ChangePasswordPage /> },
+         { path: 'profile', element: <ProfilePage /> },
+         { path: 'profile/edit', element: <EditProfilePage /> },
       ],
+    },
+    {
+      path: 'login', element: <AuthLayout><LoginPage /></AuthLayout> ,
     },
     {
       path: 'sign-in',
@@ -81,6 +96,14 @@ export function Router() {
         </AuthLayout>
       ),
     },
+    { path: 'register', element: (
+      <AuthLayout>
+        <RegisterPage />
+      </AuthLayout>
+    )},
+
+    { path: 'reset-password', element: <AuthLayout><ResetPasswordPage /></AuthLayout> },
+    { path: 'forgot-password', element: <AuthLayout><ForgotPasswordPage /></AuthLayout> },
     {
       path: '404',
       element: <Page404 />,

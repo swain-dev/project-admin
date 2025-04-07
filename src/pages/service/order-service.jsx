@@ -160,7 +160,7 @@ function ServiceOrderManagement() {
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const response = await axiosInstance.get('/service-orders?populate=*');
+      const response = await axiosInstance.get('/service-orders?populate=*&sort[0]=createdAt:desc');
       const ordersData = response.data || [];
       setOrders(ordersData);
       setFilteredOrders(ordersData);
@@ -569,26 +569,6 @@ function ServiceOrderManagement() {
                 value={dateRange.endDate}
                 onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
               />
-            </Grid>
-            
-            <Grid item xs={12} md={2}>
-              <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <Button
-                  variant="outlined"
-                  startIcon={<RefreshIcon />}
-                  onClick={handleResetFilters}
-                  sx={{ mr: 1 }}
-                >
-                  Đặt lại
-                </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<FilterListIcon />}
-                  onClick={applyFilters}
-                >
-                  Lọc
-                </Button>
-              </Box>
             </Grid>
           </Grid>
         </SearchContainer>

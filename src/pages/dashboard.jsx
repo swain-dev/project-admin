@@ -66,7 +66,7 @@ const PARTS_STATUS_MAP = {
 const DashboardStatistics = () => {
   // States
   const [loading, setLoading] = useState(true);
-  const [timeRange, setTimeRange] = useState('week');
+  const [timeRange, setTimeRange] = useState('today');
   const [serviceOrders, setServiceOrders] = useState([]);
   const [partsOrders, setPartsOrders] = useState([]);
   
@@ -89,18 +89,24 @@ const DashboardStatistics = () => {
   
   // Ngày bắt đầu và kết thúc dựa trên time range
   const [dateFilter, setDateFilter] = useState({
-    startDate: getDateBefore(7), // Mặc định 7 ngày trước
-    endDate: new Date().toISOString().split('T')[0] // Hôm nay
+    startDate: '',
+    endDate: ''
   });
   
-  // Fetch dữ liệu khi component mount và khi timeRange thay đổi
+  // Khởi tạo component với dữ liệu mặc định
   useEffect(() => {
-    updateDateFilter();
-  }, [timeRange]);
+    // Khởi tạo timeRange và gọi API
+    updateDateFilter(timeRange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
+  // Cập nhật dateFilter khi timeRange thay đổi
   useEffect(() => {
-    fetchAllOrders();
-  }, [dateFilter]);
+    if (timeRange) {
+      updateDateFilter(timeRange);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeRange]);
   
   // Hàm lấy date trước đó n ngày
   function getDateBefore(days) {
@@ -109,12 +115,12 @@ const DashboardStatistics = () => {
     return date.toISOString().split('T')[0];
   }
 
-  // Cập nhật filter dựa vào timeRange
-  const updateDateFilter = () => {
+  // Cập nhật filter dựa vào timeRange và fetch data
+  const updateDateFilter = (selectedTimeRange) => {
     let startDate = '';
     const today = new Date().toISOString().split('T')[0];
     
-    switch(timeRange) {
+    switch(selectedTimeRange) {
       case 'today':
         startDate = today;
         break;
@@ -134,23 +140,32 @@ const DashboardStatistics = () => {
         startDate = getDateBefore(7);
     }
     
-    setDateFilter({
+    const newDateFilter = {
       startDate,
       endDate: today
-    });
+    };
+    
+    setDateFilter(newDateFilter);
+    
+    // Fetch data ngay sau khi cập nhật filter
+    fetchAllOrders(newDateFilter);
   };
   
   // Hàm lấy dữ liệu đơn hàng
-  const fetchAllOrders = async () => {
+  const fetchAllOrders = async (filters = dateFilter) => {
     setLoading(true);
     try {
-      await Promise.all([
-        fetchServiceOrders(),
-        fetchPartsOrders()
+      const [serviceData, partsData] = await Promise.all([
+        fetchServiceOrders(filters),
+        fetchPartsOrders(filters)
       ]);
       
-      // Sau khi có dữ liệu, tính toán thống kê
-      calculateStats();
+      // Cập nhật state với dữ liệu mới
+      setServiceOrders(serviceData);
+      setPartsOrders(partsData);
+      
+      // Tính toán thống kê từ dữ liệu mới
+      calculateStats(serviceData, partsData);
     } catch (error) {
       console.error('Lỗi khi lấy dữ liệu đơn hàng:', error);
     } finally {
@@ -159,65 +174,75 @@ const DashboardStatistics = () => {
   };
 
   // Lấy dữ liệu đơn dịch vụ
-  const fetchServiceOrders = async () => {
+  const fetchServiceOrders = async (filters) => {
     try {
       const queryParams = new URLSearchParams();
       
-      // Filter theo thời gian
-      if (dateFilter.startDate) {
-        queryParams.append('filters[createdAt][$gte]', new Date(dateFilter.startDate).toISOString());
+      // Filter theo thời gian với format ISO cho Strapi
+      if (filters.startDate) {
+        // Bắt đầu từ đầu ngày của startDate (00:00:00)
+        const startDate = new Date(filters.startDate);
+        startDate.setHours(0, 0, 0, 0);
+        queryParams.append('filters[createdAt][$gte]', startDate.toISOString());
       }
       
-      if (dateFilter.endDate) {
-        // Thêm 1 ngày để bao gồm cả ngày được chọn
-        const endDate = new Date(dateFilter.endDate);
-        endDate.setDate(endDate.getDate() + 1);
+      if (filters.endDate) {
+        // Kết thúc vào cuối ngày của endDate (23:59:59.999)
+        const endDate = new Date(filters.endDate);
+        endDate.setHours(23, 59, 59, 999);
         queryParams.append('filters[createdAt][$lte]', endDate.toISOString());
       }
       
       // Thêm populate để lấy thông tin liên quan
       queryParams.append('populate', '*');
+      queryParams.append('pagination[pageSize]', 100); // Tăng số lượng items mỗi trang
       
       const response = await axiosInstance.get(`/service-orders?${queryParams.toString()}`);
-      setServiceOrders(response.data || []);
+      return response.data || [];
     } catch (error) {
       console.error('Lỗi khi lấy dữ liệu đơn dịch vụ:', error);
+      return [];
     }
   };
 
   // Lấy dữ liệu đơn phụ tùng
-  const fetchPartsOrders = async () => {
+  const fetchPartsOrders = async (filters) => {
     try {
       const queryParams = new URLSearchParams();
       
-      // Filter theo thời gian
-      if (dateFilter.startDate) {
-        queryParams.append('filters[createdAt][$gte]', new Date(dateFilter.startDate).toISOString());
+      // Filter theo thời gian với format ISO cho Strapi
+      if (filters.startDate) {
+        // Bắt đầu từ đầu ngày của startDate (00:00:00)
+        const startDate = new Date(filters.startDate);
+        startDate.setHours(0, 0, 0, 0);
+        queryParams.append('filters[createdAt][$gte]', startDate.toISOString());
       }
       
-      if (dateFilter.endDate) {
-        // Thêm 1 ngày để bao gồm cả ngày được chọn
-        const endDate = new Date(dateFilter.endDate);
-        endDate.setDate(endDate.getDate() + 1);
+      if (filters.endDate) {
+        // Kết thúc vào cuối ngày của endDate (23:59:59.999)
+        const endDate = new Date(filters.endDate);
+        endDate.setHours(23, 59, 59, 999);
         queryParams.append('filters[createdAt][$lte]', endDate.toISOString());
       }
       
       // Thêm populate để lấy thông tin liên quan
       queryParams.append('populate', '*');
+      queryParams.append('pagination[pageSize]', 100); // Tăng số lượng items mỗi trang
       
       const response = await axiosInstance.get(`/orders?${queryParams.toString()}`);
-      setPartsOrders(response.data || []);
+      return response.data || [];
     } catch (error) {
       console.error('Lỗi khi lấy dữ liệu đơn phụ tùng:', error);
+      return [];
     }
   };
 
   // Tính toán thống kê từ dữ liệu
-  const calculateStats = () => {
+  const calculateStats = (serviceData = serviceOrders, partsData = partsOrders) => {
     // Thống kê đơn dịch vụ
-    if (serviceOrders.length > 0) {
+    if (serviceData && serviceData.length > 0) {
       // Tổng số đơn
-      const total = serviceOrders.length;
+      const total = serviceData.length;
       
       // Thống kê theo trạng thái
       const statusCounts = {
@@ -230,7 +255,7 @@ const DashboardStatistics = () => {
       
       let totalRevenue = 0;
       
-      serviceOrders.forEach(order => {
+      serviceData.forEach(order => {
         // Đếm theo trạng thái
         const status = order.status_order || 'Đang chờ';
         statusCounts[status] = (statusCounts[status] || 0) + 1;
@@ -252,12 +277,19 @@ const DashboardStatistics = () => {
         byStatus,
         totalRevenue
       });
+    } else {
+      // Reset khi không có dữ liệu
+      setServiceStats({
+        total: 0,
+        byStatus: [],
+        totalRevenue: 0
+      });
     }
     
     // Thống kê đơn phụ tùng
-    if (partsOrders.length > 0) {
+    if (partsData && partsData.length > 0) {
       // Tổng số đơn
-      const total = partsOrders.length;
+      const total = partsData.length;
       
       // Thống kê theo trạng thái
       const statusCounts = {
@@ -271,7 +303,7 @@ const DashboardStatistics = () => {
       
       let totalRevenue = 0;
       
-      partsOrders.forEach(order => {
+      partsData.forEach(order => {
         // Đếm theo trạng thái
         const status = order.status_order || 'pending';
         statusCounts[status] = (statusCounts[status] || 0) + 1;
@@ -293,14 +325,21 @@ const DashboardStatistics = () => {
         byStatus,
         totalRevenue
       });
+    } else {
+      // Reset khi không có dữ liệu
+      setPartsStats({
+        total: 0,
+        byStatus: [],
+        totalRevenue: 0
+      });
     }
     
     // Tính toán thống kê theo tháng
-    calculateMonthlyStats();
+    calculateMonthlyStats(serviceData, partsData);
   };
 
   // Tính toán thống kê theo tháng
-  const calculateMonthlyStats = () => {
+  const calculateMonthlyStats = (serviceData = serviceOrders, partsData = partsOrders) => {
     // Tạo đối tượng lưu trữ dữ liệu theo tháng
     const months = {};
     
@@ -318,7 +357,7 @@ const DashboardStatistics = () => {
     }
     
     // Xử lý đơn dịch vụ
-    serviceOrders.forEach(order => {
+    serviceData && serviceData.forEach(order => {
       if (!order.createdAt) return;
       
       const date = new Date(order.createdAt);
@@ -331,7 +370,7 @@ const DashboardStatistics = () => {
     });
     
     // Xử lý đơn phụ tùng
-    partsOrders.forEach(order => {
+    partsData && partsData.forEach(order => {
       if (!order.createdAt) return;
       
       const date = new Date(order.createdAt);
@@ -357,6 +396,11 @@ const DashboardStatistics = () => {
   // Xử lý thay đổi khoảng thời gian
   const handleTimeRangeChange = (event) => {
     setTimeRange(event.target.value);
+  };
+  
+  // Xử lý nút cập nhật - Refresh data
+  const handleRefreshData = () => {
+    fetchAllOrders();
   };
   
   // Định dạng tiền tệ VND
@@ -391,7 +435,7 @@ const DashboardStatistics = () => {
       { label: `Đã hủy: ${statusCounts['Đã hủy']} đơn`, color: SERVICE_COLORS[1] },
       { label: `Đang thực hiện: ${statusCounts['Đang thực hiện']} đơn`, color: SERVICE_COLORS[2] },
       { label: `Đã xác nhận: ${statusCounts['Đã xác nhận']} đơn`, color: SERVICE_COLORS[4] }
-    ].filter(item => item.label.includes(' 0 đơn') === false);  // Loại bỏ các trạng thái có 0 đơn
+    ].filter(item => !item.label.includes(' 0 đơn'));  // Loại bỏ các trạng thái có 0 đơn
   };
   
   // Tạo dữ liệu hiển thị chi tiết cho đơn phụ tùng
@@ -414,7 +458,7 @@ const DashboardStatistics = () => {
       { label: `Đã giao: ${statusCounts['delivered']} đơn`, color: PARTS_COLORS[1], key: 'delivered' },
       { label: `Đã hủy: ${statusCounts['cancelled']} đơn`, color: PARTS_COLORS[2], key: 'cancelled' },
       { label: `Đã xác nhận: ${statusCounts['confirmed']} đơn`, color: PARTS_COLORS[3], key: 'confirmed' }
-    ].filter(item => item.label.includes(' 0 đơn') === false);  // Loại bỏ các trạng thái có 0 đơn
+    ].filter(item => !item.label.includes(' 0 đơn'));  // Loại bỏ các trạng thái có 0 đơn
   };
   
   return (
@@ -451,7 +495,7 @@ const DashboardStatistics = () => {
           <Button 
             variant="contained" 
             color="primary"
-            onClick={fetchAllOrders}
+            onClick={handleRefreshData}
             startIcon={<RefreshIcon />}
           >
             Cập nhật

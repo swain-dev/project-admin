@@ -1,6 +1,6 @@
 import type { IconButtonProps } from '@mui/material/IconButton';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -14,9 +14,14 @@ import MenuItem, { menuItemClasses } from '@mui/material/MenuItem';
 
 import { useRouter, usePathname } from 'src/routes/hooks';
 
-import { _myAccount } from 'src/_mock';
-
 // ----------------------------------------------------------------------
+
+// Interface cho thông tin người dùng
+interface UserInfo {
+  displayName: string;
+  email: string;
+  photoURL?: string;
+}
 
 export type AccountPopoverProps = IconButtonProps & {
   data?: {
@@ -29,8 +34,35 @@ export type AccountPopoverProps = IconButtonProps & {
 
 export function AccountPopover({ data = [], sx, ...other }: AccountPopoverProps) {
   const router = useRouter();
-
   const pathname = usePathname();
+  
+  // State để lưu thông tin người dùng
+  const [userInfo, setUserInfo] = useState<UserInfo>({
+    displayName: '',
+    email: '',
+    photoURL: '',
+  });
+
+  // Lấy thông tin người dùng từ localStorage khi component mount
+  useEffect(() => {
+    try {
+      const userFromStorage = localStorage.getItem('user');
+      if (userFromStorage) {
+        const parsedUser = JSON.parse(userFromStorage);
+        
+        // Tạo đối tượng userInfo từ dữ liệu lưu trong localStorage
+        const userInfoFromStorage: UserInfo = {
+          displayName: parsedUser.username || 'Người dùng',
+          email: parsedUser.email || '',
+          photoURL: parsedUser.avatar?.url || '',
+        };
+        
+        setUserInfo(userInfoFromStorage);
+      }
+    } catch (error) {
+      console.error('Lỗi khi lấy thông tin người dùng:', error);
+    }
+  }, []);
 
   const [openPopover, setOpenPopover] = useState<HTMLButtonElement | null>(null);
 
@@ -50,6 +82,19 @@ export function AccountPopover({ data = [], sx, ...other }: AccountPopoverProps)
     [handleClosePopover, router]
   );
 
+  // Hàm xử lý đăng xuất
+  const handleLogout = useCallback(() => {
+    // Xóa thông tin người dùng và token khỏi localStorage
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    
+    // Đóng popover
+    handleClosePopover();
+    
+    // Chuyển hướng người dùng về trang đăng nhập
+    router.push('/login');
+  }, [handleClosePopover, router]);
+
   return (
     <>
       <IconButton
@@ -64,8 +109,8 @@ export function AccountPopover({ data = [], sx, ...other }: AccountPopoverProps)
         }}
         {...other}
       >
-        <Avatar src={_myAccount.photoURL} alt={_myAccount.displayName} sx={{ width: 1, height: 1 }}>
-          {_myAccount.displayName.charAt(0).toUpperCase()}
+        <Avatar src={userInfo.photoURL} alt={userInfo.displayName} sx={{ width: 1, height: 1 }}>
+          {userInfo.displayName ? userInfo.displayName.charAt(0).toUpperCase() : 'U'}
         </Avatar>
       </IconButton>
 
@@ -83,11 +128,11 @@ export function AccountPopover({ data = [], sx, ...other }: AccountPopoverProps)
       >
         <Box sx={{ p: 2, pb: 1.5 }}>
           <Typography variant="subtitle2" noWrap>
-            {_myAccount?.displayName}
+            {userInfo.displayName}
           </Typography>
 
           <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>
-            {_myAccount?.email}
+            {userInfo.email}
           </Typography>
         </Box>
 
@@ -129,8 +174,14 @@ export function AccountPopover({ data = [], sx, ...other }: AccountPopoverProps)
         <Divider sx={{ borderStyle: 'dashed' }} />
 
         <Box sx={{ p: 1 }}>
-          <Button fullWidth color="error" size="medium" variant="text">
-            Logout
+          <Button 
+            fullWidth 
+            color="error" 
+            size="medium" 
+            variant="text"
+            onClick={handleLogout}
+          >
+            Đăng xuất
           </Button>
         </Box>
       </Popover>

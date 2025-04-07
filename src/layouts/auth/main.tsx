@@ -27,6 +27,7 @@ export function Main({ sx, children, layoutQuery, ...other }: MainProps) {
         bgcolor: 'background.default',
         maxWidth: 'var(--layout-auth-content-width)',
       }}
+      className="layout-auth-wrapper"
     >
       {children}
     </Box>
