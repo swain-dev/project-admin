@@ -37,7 +37,7 @@ export type DashboardLayoutProps = {
 
 export function DashboardLayout({ sx, children, header }: DashboardLayoutProps) {
   const theme = useTheme();
-  const router = useRouter();
+  const router:any = useRouter();
   const [navOpen, setNavOpen] = useState(false);
   const layoutQuery: Breakpoint = 'lg';
   const [alertOpen, setAlertOpen] = useState(false);
