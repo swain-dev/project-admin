@@ -216,7 +216,7 @@ export default function RegisterPage() {
         username: formData.username,
         email: formData.email,
         password: formData.password,
-        role: '0',
+        role: '2',
         confirmed: true,
         manager: true,
       };
