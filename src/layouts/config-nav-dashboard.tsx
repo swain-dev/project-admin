@@ -21,17 +21,17 @@ export const navData = [
   {
     title: 'Dịch vụ',
     path: '/products',
-    icon: icon('ic-cart'),
+    icon: icon('ic-service-1'),
   },
   {
     title: 'Đơn đặt dịch vụ',
     path: '/order-service',
-    icon: icon('ic-cart'),
+    icon: icon('ic-history'),
   },
   {
     title: 'Phụ tùng',
     path: '/car-parts',
-    icon: icon('ic-cart'),
+    icon: icon('ic-car-part'),
   },
   {
     title: 'Đơn đặt phụ tùng',
@@ -46,7 +46,7 @@ export const navData = [
   {
     title: 'Tin nhắn',
     path: '/chat',
-    icon: icon('ic-blog'),
+    icon: icon('ic-message'),
   },
   // {
   //   title: 'Sign in',
