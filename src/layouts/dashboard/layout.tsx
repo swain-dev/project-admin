@@ -42,6 +42,7 @@ export function DashboardLayout({ sx, children, header }: DashboardLayoutProps) 
   const layoutQuery: Breakpoint = 'lg';
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
+  const [filteredNavData, setFilteredNavData] = useState(navData);
 
   // Hàm logout
   const handleLogout = () => {
@@ -50,7 +51,7 @@ export function DashboardLayout({ sx, children, header }: DashboardLayoutProps) 
     router.push('/login');
   };
 
-  // Kiểm tra thông tin user
+  // Kiểm tra thông tin user và phân quyền
   const checkUserInfo = () => {
     try {
       const userJson = localStorage.getItem('user');
@@ -73,6 +74,20 @@ export function DashboardLayout({ sx, children, header }: DashboardLayoutProps) 
           handleLogout();
         }, 3000);
       }
+
+      // Lọc navData dựa trên quyền super_admin
+      // Nếu user.super_admin là false hoặc không tồn tại, ẩn link "Người dùng"
+      const isSuperAdmin = user.super_admin === true;
+      
+      const filtered = navData.filter((item) => {
+        if (item.path === '/user') {
+          return isSuperAdmin; // Chỉ hiển thị nếu là super_admin
+        }
+        return true; // Hiển thị tất cả các link khác
+      });
+      
+      setFilteredNavData(filtered);
+      
     } catch (error) {
       console.error('Error checking user info:', error);
       handleLogout();
@@ -96,12 +111,45 @@ export function DashboardLayout({ sx, children, header }: DashboardLayoutProps) 
     const handleRouteChange = () => {
       const token = localStorage.getItem('token');
       if (token) {
+        // Kiểm tra nếu đang ở trang /user nhưng không có quyền super_admin
+        const currentPath = router.pathname || window.location.pathname;
+        if (currentPath === '/user') {
+          try {
+            const userJson = localStorage.getItem('user');
+            if (userJson) {
+              const user = JSON.parse(userJson);
+              const isSuperAdmin = user.super_admin === true;
+              
+              if (!isSuperAdmin) {
+                // Redirect về trang chủ nếu không có quyền super_admin
+                router.push('/');
+                setAlertMessage('Bạn không có quyền truy cập trang Quản lý người dùng.');
+                setAlertOpen(true);
+                
+                // Tự động đóng thông báo sau 3 giây
+                setTimeout(() => {
+                  setAlertOpen(false);
+                }, 3000);
+                
+                return;
+              }
+            }
+          } catch (error) {
+            console.error('Error checking super_admin permission:', error);
+            router.push('/');
+          }
+        }
+        
+        // Kiểm tra thông tin user như bình thường
         checkUserInfo();
       }
     };
 
     // Đăng ký sự kiện với router
     router.events?.subscribe('routeChangeComplete', handleRouteChange);
+    
+    // Thực hiện kiểm tra ngay khi component mount để bắt trường hợp truy cập trực tiếp
+    handleRouteChange();
 
     // Cleanup
     return () => {
@@ -140,7 +188,7 @@ export function DashboardLayout({ sx, children, header }: DashboardLayoutProps) 
                   }}
                 />
                 <NavMobile
-                  data={navData}
+                  data={filteredNavData}
                   open={navOpen}
                   onClose={() => setNavOpen(false)}
                   workspaces={_workspaces}
@@ -175,7 +223,7 @@ export function DashboardLayout({ sx, children, header }: DashboardLayoutProps) 
        * Sidebar
        *************************************** */
       sidebarSection={
-        <NavDesktop data={navData} layoutQuery={layoutQuery} workspaces={_workspaces} />
+        <NavDesktop data={filteredNavData} layoutQuery={layoutQuery} workspaces={_workspaces} />
       }
       /** **************************************
        * Footer
