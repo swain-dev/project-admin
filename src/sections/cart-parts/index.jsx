@@ -75,6 +75,17 @@ const CarPartsManagement = () => {
   // State cho dialog xóa
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [partToDelete, setPartToDelete] = useState(null);
+  const [superAdmin, setSuperAdmin] = useState(null);
+
+  useEffect(() => {
+    const userStorage = localStorage.getItem('user');
+    if(userStorage) {
+      setSuperAdmin(JSON.parse(userStorage).super_admin);
+    } else {
+      setSuperAdmin(null);
+    }
+  }, []);
+
 
   // State cho snackbar thông báo
   const [snackbar, setSnackbar] = useState({
@@ -436,6 +447,7 @@ const CarPartsManagement = () => {
           color="primary" 
           onClick={handleAddNew}
           startIcon={<AddIcon />}
+          disabled={!superAdmin}
         >
           Thêm phụ tùng
         </Button>
@@ -500,6 +512,8 @@ const CarPartsManagement = () => {
                         color="primary" 
                         onClick={() => handleEdit(part)}
                         title="Chỉnh sửa"
+                        disabled={!superAdmin}
+                        className='icon-action'
                       >
                         <EditIcon />
                       </IconButton>
@@ -507,6 +521,8 @@ const CarPartsManagement = () => {
                         color="error" 
                         onClick={() => handleDeleteConfirm(part)}
                         title="Xóa"
+                        className='icon-action'
+                        disabled={!superAdmin}
                       >
                         <DeleteIcon />
                       </IconButton>

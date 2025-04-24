@@ -53,6 +53,7 @@ const ServiceManagement = () => {
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [superAdmin, setSuperAdmin] = useState(null);
 
   // State cho phân trang
   const [page, setPage] = useState(1);
@@ -91,6 +92,15 @@ const ServiceManagement = () => {
   useEffect(() => {
     fetchServices();
   }, [page]);
+
+  useEffect(() => {
+    const userStorage = localStorage.getItem('user');
+    if(userStorage) {
+      setSuperAdmin(JSON.parse(userStorage).super_admin);
+    } else {
+      setSuperAdmin(null);
+    }
+  }, []);
 
   // Hàm lấy danh sách dịch vụ từ API với phân trang
   const fetchServices = async () => {
@@ -410,6 +420,7 @@ const ServiceManagement = () => {
           color="primary" 
           onClick={handleAddNew}
           startIcon={<AddIcon />}
+          disabled={!superAdmin}
         >
           Thêm dịch vụ
         </Button>
@@ -483,6 +494,8 @@ const ServiceManagement = () => {
                           color="primary" 
                           onClick={() => handleEdit(service)}
                           title="Chỉnh sửa"
+                          disabled={!superAdmin}
+                          className='icon-action'
                         >
                           <EditIcon />
                         </IconButton>
@@ -490,6 +503,8 @@ const ServiceManagement = () => {
                           color="error" 
                           onClick={() => handleDeleteConfirm(service)}
                           title="Xóa"
+                          disabled={!superAdmin}
+                          className='icon-action'
                         >
                           <DeleteIcon />
                         </IconButton>

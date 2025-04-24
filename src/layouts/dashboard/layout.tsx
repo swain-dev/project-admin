@@ -80,7 +80,7 @@ export function DashboardLayout({ sx, children, header }: DashboardLayoutProps) 
       const isSuperAdmin = user.super_admin === true;
       
       const filtered = navData.filter((item) => {
-        if (item.path === '/user') {
+        if (item.path === '/user' || item.path === '/') {
           return isSuperAdmin; // Chỉ hiển thị nếu là super_admin
         }
         return true; // Hiển thị tất cả các link khác
@@ -122,7 +122,7 @@ export function DashboardLayout({ sx, children, header }: DashboardLayoutProps) 
               
               if (!isSuperAdmin) {
                 // Redirect về trang chủ nếu không có quyền super_admin
-                router.push('/');
+                router.push('/products');
                 setAlertMessage('Bạn không có quyền truy cập trang Quản lý người dùng.');
                 setAlertOpen(true);
                 
@@ -136,7 +136,34 @@ export function DashboardLayout({ sx, children, header }: DashboardLayoutProps) 
             }
           } catch (error) {
             console.error('Error checking super_admin permission:', error);
-            router.push('/');
+            router.push('/products');
+          }
+        }
+
+        if (currentPath === '/') {
+          try {
+            const userJson = localStorage.getItem('user');
+            if (userJson) {
+              const user = JSON.parse(userJson);
+              const isSuperAdmin = user.super_admin === true;
+              
+              if (!isSuperAdmin) {
+                // Redirect về trang chủ nếu không có quyền super_admin
+                router.push('/products');
+                setAlertMessage('Bạn không có quyền truy cập trang thống kê.');
+                setAlertOpen(true);
+                
+                // Tự động đóng thông báo sau 3 giây
+                setTimeout(() => {
+                  setAlertOpen(false);
+                }, 3000);
+                
+                return;
+              }
+            }
+          } catch (error) {
+            console.error('Error checking super_admin permission:', error);
+            router.push('/products');
           }
         }
         

@@ -152,3 +152,7 @@ input[type='number']::-webkit-inner-spin-button {
   align-self: center;
   margin-bottom: 30px;
 }
+
+.icon-action:disabled {
+  opacity: 0.5;
+}
