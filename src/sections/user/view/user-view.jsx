@@ -43,6 +43,17 @@ import {
 
 import axiosInstance from 'src/utils/axios';
 
+const USER_CATEGORIES = [
+  {
+    label: "Người dùng",
+    value: false
+  },
+  {
+    label: "Nhân viên",
+    value: true
+  },
+];
+
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -62,6 +73,7 @@ export default function UserManagement() {
     confirmPassword: '',
     fullName: '',
     phone: '',
+    manager: true
   });
   const [userFormErrors, setUserFormErrors] = useState({});
   const [editMode, setEditMode] = useState(false);
@@ -108,7 +120,10 @@ export default function UserManagement() {
       }
       
       // Chỉ hiển thị người dùng thông thường (manager=false)
-      params.append('filters[manager]', 'false');
+      // params.append('filters[$or][super_admin][$null]', 'true');
+      params.append('filters[$or][0][super_admin][$null]', 'true');
+      params.append('filters[$or][1][super_admin][$eq]', 'false');
+      params.append('filters[role]', '2');
 
       // Populate relationships
       params.append('populate', '*');
@@ -202,7 +217,7 @@ export default function UserManagement() {
 
   const handleCreateUser = async () => {
     if (!validateUserForm()) return;
-    
+    console.log(userFormData);
     setLoading(true);
     try {
       const userData = {
@@ -211,7 +226,7 @@ export default function UserManagement() {
         password: userFormData.password,
         fullName: userFormData.fullName || null,
         phone: userFormData.phone || null,
-        manager: false, // Luôn là false cho người dùng thông thường
+        manager: userFormData.manager, // Luôn là false cho người dùng thông thường
         confirmed: true, // Mặc định đã xác nhận
         blocked: false, // Mặc định không bị khóa,
         role: '2'
@@ -250,6 +265,7 @@ export default function UserManagement() {
         email: userFormData.email,
         fullName: userFormData.fullName || null,
         phone: userFormData.phone || null,
+        manager: userFormData.manager
       };
       
       // Chỉ gửi mật khẩu nếu đã nhập mật khẩu mới
@@ -328,6 +344,7 @@ export default function UserManagement() {
       confirmPassword: '',
       fullName: user.fullName || '',
       phone: user.phone || '',
+      manager: user.manager || false
     });
     setCurrentUserId(user.id);
     setEditMode(true);
@@ -349,6 +366,7 @@ export default function UserManagement() {
       confirmPassword: '',
       fullName: '',
       phone: '',
+      manager: true
     });
     setUserFormErrors({});
     setCurrentUserId(null);
@@ -495,6 +513,7 @@ export default function UserManagement() {
                 <TableCell>Email</TableCell>
                 <TableCell>Họ tên</TableCell>
                 <TableCell>Điện thoại</TableCell>
+                <TableCell>Quyền</TableCell>
                 <TableCell align="right">Thao tác</TableCell>
               </TableRow>
             </TableHead>
@@ -583,6 +602,7 @@ export default function UserManagement() {
                       <TableCell>{user.email}</TableCell>
                       <TableCell>{user.fullName || '-'}</TableCell>
                       <TableCell>{user.phone || '-'}</TableCell>
+                      <TableCell>{user.manager ? 'Nhân viên' : 'Người dùng'}</TableCell>
                       <TableCell align="right">
                         <IconButton onClick={(event) => handleOpenPopover(event, user.id)}>
                           <MoreVertIcon />
@@ -727,6 +747,23 @@ export default function UserManagement() {
                 value={userFormData.phone || ''}
                 onChange={handleUserFormChange}
               />
+
+              <TextField
+                fullWidth
+                select
+                label="Quyền"
+                name="manager"
+                value={userFormData.manager}
+                defaultValue={true}
+                onChange={handleUserFormChange}
+                required
+              >
+                {USER_CATEGORIES.map((option) => (
+                  <MenuItem key={option.label} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
             </Stack>
           </Box>
         </DialogContent>
